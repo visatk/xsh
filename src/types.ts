@@ -1,15 +1,18 @@
+import { Context } from "grammy";
+
 export interface Env {
+  // Cloudflare D1 Binding
   DB: D1Database;
-  TG_BOT_TOKEN: string;
+  // Environment variables
+  TELEGRAM_BOT_TOKEN: string;
   APIRONE_ACCOUNT: string;
-  ADMIN_TG_ID: string;
-  WEBHOOK_SECRET: string;
 }
 
-export interface Product {
-  id: number;
-  name: string;
-  description: string;
-  price_usd: number;
-  available_stock: number;
+// Custom Grammy Context to include Cloudflare environment
+export interface BotContext extends Context {
+  env: Env;
+  user?: {
+    id: number;
+    isAdmin: boolean;
+  };
 }
