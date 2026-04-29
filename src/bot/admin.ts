@@ -1,51 +1,82 @@
-import { Context } from 'grammy';
-import { ShopDB } from '../db/queries';
+import { Composer } from "grammy";
+import { BotContext } from "../types";
+import { getUserStats, setBanStatus, getAllActiveUsers, checkIsAdmin } from "../db/queries";
 
-// Format: /addproduct Name | Price | Description
-export const handleAddProduct = async (ctx: Context, db: ShopDB) => {
-  const text = ctx.message?.text?.replace('/addproduct ', '');
-  if (!text) return ctx.reply("Format: /addproduct Name | Price | Description");
+export const adminComposer = new Composer<BotContext>();
 
-  const parts = text.split('|').map(p => p.trim());
-  if (parts.length !== 3) return ctx.reply("Invalid format. Use: Name | Price | Description");
-
-  const price = parseFloat(parts[1]);
-  if (isNaN(price)) return ctx.reply("Price must be a valid number.");
-
-  await db.addProduct(parts[0], parts[2], price);
-  await ctx.reply(`✅ Product "${parts[0]}" added successfully.`);
-};
-
-// Format: /delproduct <id>
-export const handleDelProduct = async (ctx: Context, db: ShopDB) => {
-  const idStr = ctx.message?.text?.split(' ')[1];
-  const id = parseInt(idStr || '');
+// 1. Strict Security Middleware
+adminComposer.use(async (ctx, next) => {
+  if (!ctx.from) return;
   
-  if (isNaN(id)) return ctx.reply("Format: /delproduct <product_id>");
+  const isAdmin = await checkIsAdmin(ctx.env, ctx.from.id);
+  if (!isAdmin) {
+    // Silently ignore or alert unauthorized access
+    console.warn(`Unauthorized admin access attempt by ${ctx.from.id}`);
+    return;
+  }
+  
+  ctx.user = { id: ctx.from.id, isAdmin: true };
+  await next();
+});
 
-  await db.deleteProduct(id);
-  await ctx.reply(`🗑️ Product ID ${id} and its stock deleted.`);
-};
+// 2. Dashboard Command
+adminComposer.command("admin", async (ctx) => {
+  const stats = await getUserStats(ctx.env);
+  
+  const msg = `
+👑 <b>Admin Dashboard</b> 👑
 
-// Format: 
-// /addstock <product_id>
-// key1
-// key2
-export const handleAddStock = async (ctx: Context, db: ShopDB) => {
-  const lines = ctx.message?.text?.split('\n') || [];
-  if (lines.length < 2) {
-    return ctx.reply("Format:\n/addstock <product_id>\nkey1\nkey2");
+👥 <b>Total Users:</b> ${stats?.totalUsers || 0}
+🚫 <b>Banned Users:</b> ${stats?.bannedUsers || 0}
+
+<b>Available Commands:</b>
+<code>/broadcast [message]</code> - Send message to all users
+<code>/ban [user_id]</code> - Ban a user
+<code>/unban [user_id]</code> - Unban a user
+  `;
+  
+  await ctx.reply(msg, { parse_mode: "HTML" });
+});
+
+// 3. Broadcast System
+adminComposer.command("broadcast", async (ctx) => {
+  const message = ctx.match;
+  if (!message) {
+    return ctx.reply("❌ Please provide a message. Usage: <code>/broadcast Hello everyone!</code>", { parse_mode: "HTML" });
   }
 
-  const cmdLine = lines[0].split(' ');
-  const productId = parseInt(cmdLine[1]);
-
-  if (isNaN(productId)) return ctx.reply("Invalid product ID.");
-
-  const credentials = lines.slice(1).filter(line => line.trim() !== '');
+  await ctx.reply("⏳ Starting broadcast...");
   
-  if (credentials.length === 0) return ctx.reply("No keys provided.");
+  const users = await getAllActiveUsers(ctx.env);
+  let successCount = 0;
+  let failCount = 0;
 
-  const addedCount = await db.addStockBatch(productId, credentials);
-  await ctx.reply(`✅ Added ${addedCount} keys to Product ID ${productId}.`);
-};
+  // Note: For massive lists (10k+), this should be pushed to a Cloudflare Queue.
+  // For standard sizes, Promise.allSettled works well within Worker limits.
+  const broadcastPromises = users.map(userId => 
+    ctx.api.sendMessage(userId, `📢 <b>Broadcast:</b>\n\n${message}`, { parse_mode: "HTML" })
+      .then(() => { successCount++; })
+      .catch(() => { failCount++; })
+  );
+
+  await Promise.allSettled(broadcastPromises);
+
+  await ctx.reply(`✅ <b>Broadcast Complete!</b>\n\nSent: ${successCount}\nFailed: ${failCount}`, { parse_mode: "HTML" });
+});
+
+// 4. Ban / Unban Management
+adminComposer.command("ban", async (ctx) => {
+  const targetId = parseInt(ctx.match);
+  if (isNaN(targetId)) return ctx.reply("❌ Invalid User ID.");
+
+  await setBanStatus(ctx.env, targetId, true);
+  await ctx.reply(`✅ User <code>${targetId}</code> has been banned.`, { parse_mode: "HTML" });
+});
+
+adminComposer.command("unban", async (ctx) => {
+  const targetId = parseInt(ctx.match);
+  if (isNaN(targetId)) return ctx.reply("❌ Invalid User ID.");
+
+  await setBanStatus(ctx.env, targetId, false);
+  await ctx.reply(`✅ User <code>${targetId}</code> has been unbanned.`, { parse_mode: "HTML" });
+});
