@@ -1,23 +1,26 @@
-import { Bot, webhookCallback } from "grammy";
+import { Bot } from "grammy";
 import { BotContext, Env } from "../types";
 import { adminComposer } from "./admin";
+import { commandsComposer } from "./commands";
 
-export function setupBot(env: Env) {
+export function setupBot(env: Env): Bot<BotContext> {
   const bot = new Bot<BotContext>(env.TELEGRAM_BOT_TOKEN);
 
-  // Inject environment variables into context
+  // Inject bindings
   bot.use(async (ctx, next) => {
     ctx.env = env;
     await next();
   });
 
-  // Register Admin Module
-  bot.use(adminComposer);
-
-  // Normal user commands
-  bot.command("start", async (ctx) => {
-    await ctx.reply("Welcome to the service!");
+  bot.catch((err) => {
+    console.error(`Update ${err.ctx.update.update_id} failed:`, err.error);
   });
+
+  // Attach Public Commands (Start, Help)
+  bot.use(commandsComposer);
+
+  // Attach Admin Commands (Gated by internal middleware)
+  bot.use(adminComposer);
 
   return bot;
 }
