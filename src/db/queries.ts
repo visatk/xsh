@@ -1,5 +1,19 @@
 import { Env } from "../types";
 
+export async function registerUser(
+  env: Env, 
+  user: { id: number; username: string | null; firstName: string }
+) {
+  const stmt = env.DB.prepare(`
+    INSERT INTO users (telegram_id, username, first_name)
+    VALUES (?, ?, ?)
+    ON CONFLICT(telegram_id) DO UPDATE SET 
+      username = excluded.username,
+      first_name = excluded.first_name
+  `);
+  await stmt.bind(user.id, user.username, user.firstName).run();
+}
+
 export async function getUserStats(env: Env) {
   const stmt = env.DB.prepare(`
     SELECT 
@@ -20,10 +34,4 @@ export async function getAllActiveUsers(env: Env): Promise<number[]> {
 export async function setBanStatus(env: Env, userId: number, isBanned: boolean) {
   const stmt = env.DB.prepare(`UPDATE users SET is_banned = ? WHERE telegram_id = ?`);
   await stmt.bind(isBanned ? 1 : 0, userId).run();
-}
-
-export async function checkIsAdmin(env: Env, userId: number): Promise<boolean> {
-  const stmt = env.DB.prepare(`SELECT 1 FROM admins WHERE telegram_id = ?`);
-  const result = await stmt.bind(userId).first();
-  return !!result;
 }
