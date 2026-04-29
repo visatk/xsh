@@ -1,4 +1,3 @@
-// src/index.ts
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { Bot, webhookCallback, Context } from 'grammy';
