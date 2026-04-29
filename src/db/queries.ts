@@ -30,3 +30,35 @@ export class ShopDB {
     return results?.[0]?.credentials || null;
   }
 }
+
+  // --- Admin Methods ---
+
+  async addProduct(name: string, description: string, priceUsd: number): Promise<void> {
+    await this.db.prepare(
+      `INSERT INTO products (name, description, price_usd) VALUES (?, ?, ?)`
+    ).bind(name, description, priceUsd).run();
+  }
+
+  async editProduct(id: number, name: string, description: string, priceUsd: number): Promise<void> {
+    await this.db.prepare(
+      `UPDATE products SET name = ?, description = ?, price_usd = ? WHERE id = ?`
+    ).bind(name, description, priceUsd, id).run();
+  }
+
+  async deleteProduct(id: number): Promise<void> {
+    // Delete stock associated with the product first to maintain referential integrity
+    await this.db.batch([
+      this.db.prepare(`DELETE FROM stock WHERE product_id = ?`).bind(id),
+      this.db.prepare(`DELETE FROM products WHERE id = ?`).bind(id)
+    ]);
+  }
+
+  async addStockBatch(productId: number, credentialsList: string[]): Promise<number> {
+    // Utilize D1 batching for high-performance bulk inserts
+    const stmt = this.db.prepare(`INSERT INTO stock (product_id, credentials) VALUES (?, ?)`);
+    const batchStmts = credentialsList.map(cred => stmt.bind(productId, cred.trim()));
+    
+    await this.db.batch(batchStmts);
+    return batchStmts.length;
+  }
+}
