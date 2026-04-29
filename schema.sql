@@ -1,40 +1,29 @@
-PRAGMA foreign_keys = ON;
+-- Drop tables if they exist for clean migrations
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS transactions;
 
+-- Users Table
 CREATE TABLE users (
-    tg_id INTEGER PRIMARY KEY,
+    telegram_id INTEGER PRIMARY KEY,
     username TEXT,
-    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    first_name TEXT,
+    is_banned BOOLEAN DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE products (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    description TEXT,
-    price_usd REAL NOT NULL
-);
-
-CREATE TABLE stock (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    product_id INTEGER NOT NULL,
-    credentials TEXT NOT NULL,
-    is_sold BOOLEAN DEFAULT 0,
-    buyer_id INTEGER,
-    FOREIGN KEY(product_id) REFERENCES products(id),
-    FOREIGN KEY(buyer_id) REFERENCES users(tg_id)
-);
-
-CREATE TABLE invoices (
-    invoice_id TEXT PRIMARY KEY,
-    tg_id INTEGER NOT NULL,
-    product_id INTEGER NOT NULL,
-    amount_crypto TEXT NOT NULL,
+-- Transactions Table (Integrating with your Apirone API)
+CREATE TABLE transactions (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    amount REAL NOT NULL,
     currency TEXT NOT NULL,
-    address TEXT NOT NULL,
     status TEXT DEFAULT 'pending',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(tg_id) REFERENCES users(tg_id),
-    FOREIGN KEY(product_id) REFERENCES products(id)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(telegram_id)
 );
 
-CREATE INDEX idx_stock_product ON stock(product_id);
-CREATE INDEX idx_invoices_status ON invoices(status);
+-- Admins (Hardcoded for security, or managed via D1. Here we use a table for dynamic management)
+CREATE TABLE admins (
+    telegram_id INTEGER PRIMARY KEY,
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
