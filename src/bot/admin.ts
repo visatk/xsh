@@ -1,25 +1,27 @@
 import { Composer } from "grammy";
 import { BotContext } from "../types";
-import { getUserStats, setBanStatus, getAllActiveUsers, checkIsAdmin } from "../db/queries";
+import { getUserStats, setBanStatus, getAllActiveUsers } from "../db/queries";
 
 export const adminComposer = new Composer<BotContext>();
 
-// 1. Strict Security Middleware
+// Authorization Middleware
 adminComposer.use(async (ctx, next) => {
   if (!ctx.from) return;
-  
-  const isAdmin = await checkIsAdmin(ctx.env, ctx.from.id);
-  if (!isAdmin) {
-    // Silently ignore or alert unauthorized access
-    console.warn(`Unauthorized admin access attempt by ${ctx.from.id}`);
-    return;
+
+  const adminIds = (ctx.env.ADMIN_USER_IDS || "")
+    .split(",")
+    .map(id => parseInt(id.trim(), 10))
+    .filter(id => !isNaN(id));
+
+  if (!adminIds.includes(ctx.from.id)) {
+    return; // Drop silently
   }
-  
+
   ctx.user = { id: ctx.from.id, isAdmin: true };
   await next();
 });
 
-// 2. Dashboard Command
+// Admin Dashboard
 adminComposer.command("admin", async (ctx) => {
   const stats = await getUserStats(ctx.env);
   
@@ -34,15 +36,14 @@ adminComposer.command("admin", async (ctx) => {
 <code>/ban [user_id]</code> - Ban a user
 <code>/unban [user_id]</code> - Unban a user
   `;
-  
   await ctx.reply(msg, { parse_mode: "HTML" });
 });
 
-// 3. Broadcast System
+// Broadcast System
 adminComposer.command("broadcast", async (ctx) => {
   const message = ctx.match;
   if (!message) {
-    return ctx.reply("❌ Please provide a message. Usage: <code>/broadcast Hello everyone!</code>", { parse_mode: "HTML" });
+    return ctx.reply("❌ Usage: <code>/broadcast Your message here</code>", { parse_mode: "HTML" });
   }
 
   await ctx.reply("⏳ Starting broadcast...");
@@ -51,8 +52,6 @@ adminComposer.command("broadcast", async (ctx) => {
   let successCount = 0;
   let failCount = 0;
 
-  // Note: For massive lists (10k+), this should be pushed to a Cloudflare Queue.
-  // For standard sizes, Promise.allSettled works well within Worker limits.
   const broadcastPromises = users.map(userId => 
     ctx.api.sendMessage(userId, `📢 <b>Broadcast:</b>\n\n${message}`, { parse_mode: "HTML" })
       .then(() => { successCount++; })
@@ -61,16 +60,16 @@ adminComposer.command("broadcast", async (ctx) => {
 
   await Promise.allSettled(broadcastPromises);
 
-  await ctx.reply(`✅ <b>Broadcast Complete!</b>\n\nSent: ${successCount}\nFailed: ${failCount}`, { parse_mode: "HTML" });
+  await ctx.reply(`✅ <b>Broadcast Complete</b>\nSent: ${successCount}\nFailed: ${failCount}`, { parse_mode: "HTML" });
 });
 
-// 4. Ban / Unban Management
+// Ban Management
 adminComposer.command("ban", async (ctx) => {
   const targetId = parseInt(ctx.match);
   if (isNaN(targetId)) return ctx.reply("❌ Invalid User ID.");
 
   await setBanStatus(ctx.env, targetId, true);
-  await ctx.reply(`✅ User <code>${targetId}</code> has been banned.`, { parse_mode: "HTML" });
+  await ctx.reply(`✅ User <code>${targetId}</code> banned.`, { parse_mode: "HTML" });
 });
 
 adminComposer.command("unban", async (ctx) => {
@@ -78,5 +77,5 @@ adminComposer.command("unban", async (ctx) => {
   if (isNaN(targetId)) return ctx.reply("❌ Invalid User ID.");
 
   await setBanStatus(ctx.env, targetId, false);
-  await ctx.reply(`✅ User <code>${targetId}</code> has been unbanned.`, { parse_mode: "HTML" });
+  await ctx.reply(`✅ User <code>${targetId}</code> unbanned.`, { parse_mode: "HTML" });
 });
