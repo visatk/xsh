@@ -16,6 +16,12 @@
       "database_id": "771364f8-7860-4c4f-848f-29c66949b2e8"
     }
   ],
+  "kv_namespaces": [
+    {
+      "binding": "KV",
+      "id": "4c6ec37b376d4b34ac12f0fba4940f62"
+    }
+  ],
   "vars": {
     "APP_URL": "https://api.jsap.workers.dev"
   }
