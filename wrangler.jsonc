@@ -15,5 +15,8 @@
       "database_name": "database",
       "database_id": "771364f8-7860-4c4f-848f-29c66949b2e8"
     }
-  ]
+  ],
+  "vars": {
+    "APP_URL": "https://api.jsap.workers.dev"
+  }
 }
