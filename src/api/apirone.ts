@@ -1,25 +1,32 @@
-export class ApironeService {
-  private readonly baseUrl = 'https://apirone.com/api/v2';
+import { Env } from '../types';
 
-  constructor(private accountId: string) {}
+/**
+ * Generates a unique deposit address for a specific user.
+ * We embed the user_id in the callback data so Apirone sends it back to us upon payment[cite: 2].
+ */
+export async function generateDepositAddress(env: Env, currency: string, userId: number): Promise<string | null> {
+    const payload = {
+        currency: currency,
+        callback: {
+            method: "POST",
+            url: `${env.APP_URL}/webhook/apirone`,
+            data: {
+                user_id: userId.toString()
+            }
+        }
+    };
 
-  async createInvoice(amountUsd: number, currency: string = 'btc', callbackUrl: string) {
-    // Note: In production, convert USD to Crypto dynamically based on exchange rates
-    const amountCrypto = amountUsd * 0.000015; // Placeholder conversion logic
-
-    const response = await fetch(`${this.baseUrl}/invoices`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        account: this.accountId,
-        currency,
-        amount: Math.floor(amountCrypto * 1e8), // Apirone expects minor units (Satoshi)
-        lifetime: 1800, // 30 minutes
-        callback_url: callbackUrl
-      })
+    const response = await fetch(`https://apirone.com/api/v2/accounts/${env.APIRONE_ACCOUNT}/addresses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
     });
 
-    if (!response.ok) throw new Error('Payment gateway error');
-    return response.json();
-  }
+    if (!response.ok) {
+        console.error('Apirone Address Generation Error:', await response.text());
+        return null;
+    }
+
+    const data = await response.json() as { address: string };
+    return data.address;
 }
