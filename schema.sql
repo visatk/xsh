@@ -1,20 +1,21 @@
-DROP TABLE IF EXISTS users;
-DROP TABLE IF EXISTS transactions;
-
-CREATE TABLE users (
-    telegram_id INTEGER PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS users (
+    user_id INTEGER PRIMARY KEY,
     username TEXT,
     first_name TEXT,
-    is_banned BOOLEAN DEFAULT 0,
+    balance REAL DEFAULT 0.0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE transactions (
-    id TEXT PRIMARY KEY,
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+
+CREATE TABLE IF NOT EXISTS deposits (
+    tx_hash TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL,
-    amount REAL NOT NULL,
     currency TEXT NOT NULL,
-    status TEXT DEFAULT 'pending',
+    amount REAL NOT NULL,
+    status TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(user_id) REFERENCES users(telegram_id)
+    FOREIGN KEY(user_id) REFERENCES users(user_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_deposits_user_id ON deposits(user_iidON
